@@ -44,9 +44,33 @@ At the top of the `<script>` block in `index.html`:
 
 FormSubmit needs a **one-time activation**. The first submission to a new address sends that address a confirmation email, and nothing is delivered until someone clicks the link in it. Until then FormSubmit replies `success: "false"` and the board shows a warning toast. The task is still added either way: a notification failure never breaks the board.
 
-## Deployment
+## Privacy
 
-On every push to `main`, [.github/workflows/pages.yml](.github/workflows/pages.yml) publishes the repository root to GitHub Pages. There is no build step.
+- **Nothing is stored.** No localStorage, sessionStorage, IndexedDB or cookies. A refresh resets the board to the seed data.
+- **One network request.** When a task is added, `notifyNewTask()` POSTs JSON to `FORMSUBMIT_ENDPOINT`. The payload contains only that task's fields (ID, title, description, project, category, assignee, priority, due date, status) and a submission timestamp. Nothing about the browser or the other tasks is sent.
+- No analytics, tracking, CDNs or web fonts.
+- `FORMSUBMIT_ENDPOINT` is visible to anyone who opens the page. To avoid publishing your inbox address, use the random-string alias FormSubmit shows in its activation email (`https://formsubmit.co/ajax/<random-id>`).
+
+## Project structure
+
+```
+index.html                  The whole app: markup, CSS and JS
+docs/screenshot.png         README screenshot (not deployed)
+.github/workflows/ci.yml    CI checks
+.github/workflows/pages.yml GitHub Pages deploy
+.htmlvalidate.json          html-validate config used by CI
+.claude/commands/publish.md Claude Code /publish command
+CLAUDE.md                   Architecture notes and constraints
+```
+
+## CI/CD
+
+GitHub Actions run on every push and pull request to `main`:
+
+| Workflow | What it does |
+|---|---|
+| [CI](.github/workflows/ci.yml) | **Secret scan** with gitleaks over the full history. **Constraint checks**: single `index.html`; no storage APIs, `alert()`/`confirm()`, `!important` or external scripts, styles or fonts; exactly one `fetch()`, inside `notifyNewTask()`; no URLs other than FormSubmit. **HTML validation** with html-validate. |
+| [Deploy to GitHub Pages](.github/workflows/pages.yml) | Runs after CI succeeds on a push to `main` (or manually). It publishes only `index.html`; repo docs and config are not served. |
 
 ## Contributor conventions
 
@@ -62,4 +86,4 @@ See [CLAUDE.md](CLAUDE.md) for the full architecture notes.
 
 ## Testing
 
-There is no automated test suite. Test manually in a browser: add, move, filter and delete tasks, check the keyboard flows, and check the notification toast.
+There is no automated test suite beyond the CI checks above. Test behaviour manually in a browser: add, move, filter and delete tasks, check the keyboard flows, and check the notification toast.

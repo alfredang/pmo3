@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  constraints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check project constraints
+        run: |
+          fail=0
+          err() { echo "::error::$1"; fail=1; }
+
+          [ -f index.html ] || err "index.html is missing"
+
+          others=$(git ls-files '*.html' '*.js' '*.css' | grep -vx 'index.html' || true)
+          [ -z "$others" ] || err "Only index.html is allowed; found: $others"
+
+          if grep -nE 'localStorage|sessionStorage|indexedDB|document\.cookie' index.html; then
+            err "Storage APIs are not allowed"
+          fi
+          if grep -nE '\b(alert|confirm)\(' index.html; then
+            err "alert()/confirm() are not allowed"
+          fi
+          if grep -n '!important' index.html; then
+            err "!important is not allowed"
+          fi
+          if grep -nEi '<script[^>]+src=|<link[^>]+href="https?:|@import|url\(["'"'"']?https?:' index.html; then
+            err "External scripts, stylesheets, fonts or CDN URLs are not allowed"
+          fi
+          if grep -nEi 'XMLHttpRequest|sendBeacon|WebSocket|EventSource|new Image\(|import\(' index.html; then
+            err "Only notifyNewTask() may make network requests"
+          fi
+
+          fetches=$(grep -c 'fetch(' index.html || true)
+          [ "$fetches" -eq 1 ] || err "Expected exactly one fetch( call, found $fetches"
+          inside=$(awk '/^async function notifyNewTask\(/{f=1} f&&/fetch\(/{print; exit} f&&/^}/{f=0}' index.html)
+          [ -n "$inside" ] || err "fetch( must be inside notifyNewTask()"
+
+          urls=$(grep -noE 'https?://[^"'"'"' )<>]+' index.html | grep -vE 'https://formsubmit\.co/ajax/|http://www\.w3\.org/' || true)
+          [ -z "$urls" ] || err "Unexpected URLs: $urls"
+          grep -nE '^const FORMSUBMIT_ENDPOINT = "https://formsubmit\.co/ajax/' index.html > /dev/null \
+            || err "FORMSUBMIT_ENDPOINT must point at https://formsubmit.co/ajax/"
+
+          exit $fail
+
+  html-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npx --yes html-validate@8 index.html

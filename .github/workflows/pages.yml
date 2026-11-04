@@ -1,7 +1,10 @@
 name: Deploy to GitHub Pages
 
+# Deploys only after CI passes on a push to main (or on manual dispatch).
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -16,17 +19,29 @@ concurrency:
 
 jobs:
   deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true
+      # Publish only the app; never CLAUDE.md, .github/, .claude/ or docs/.
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
