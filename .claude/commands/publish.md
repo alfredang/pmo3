@@ -173,7 +173,24 @@ Commit the workflow changes and push.
   `gh repo view OWNER/REPO --json homepageUrl,description,repositoryTopics`.
 - Make sure the README's Live demo link matches that URL.
 
-## 8. Report
+## 8. Screenshot the live site
+
+Use the Playwright MCP tools (server configured in `.mcp.json`) to capture the deployed page,
+not the local file, so the screenshot shows exactly what visitors see.
+
+- `browser_resize` to 1440×900, then `browser_navigate` to the live Pages URL.
+- `browser_take_screenshot` with `filename: docs/screenshot.png`, `type: png`,
+  `scale: css` (viewport only, not full page). Then `browser_close`.
+- Read the image back and check it: header, summary bar, filters and all four columns with
+  seed cards should be visible, with no error toast. A favicon 404 in the console is harmless;
+  any other console error is worth reporting.
+- Make sure the README shows it near the top, under the Live demo link, with descriptive alt
+  text: `![IT PMO Kanban board with ...](docs/screenshot.png)`.
+- If the image changed, stage only `docs/screenshot.png` (and `README.md` if edited), commit
+  ("Update README screenshot from live site" plus the attribution line) and push. Pages does
+  not serve `docs/`, so this push needs no redeploy check beyond CI passing.
+
+## 9. Report
 
 Finish with a short summary:
 
